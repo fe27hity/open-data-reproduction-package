@@ -1,0 +1,227 @@
+pipeline WeatherPipeline {
+
+    WeatherExtractor
+        -> WeatherTextFileInterpreter
+        -> WeatherCSVInterpreter
+        -> WeatherTableInterpreter
+        -> CasualtiesTransformer
+        -> WeatherLoader;
+
+    block WeatherExtractor oftype LocalFileExtractor {
+        filePath: "weather_events.csv";
+    }
+
+    block WeatherTextFileInterpreter oftype TextFileInterpreter { }
+
+    block WeatherCSVInterpreter oftype CSVInterpreter {
+        delimiter: ",";
+        enclosing: '"';
+    }
+
+    block WeatherTableInterpreter oftype TableInterpreter {
+        header: true;
+        columns: [
+            "STATE" oftype text,
+            "INJURIES_DIRECT" oftype integer,
+            "INJURIES_INDIRECT" oftype integer,
+            "DEATHS_DIRECT" oftype integer,
+            "DEATHS_INDIRECT" oftype integer
+        ];
+    }
+
+    transform TotalCasualties {
+        from Injuries_dir oftype integer;
+        from Injuries_ind oftype integer;
+        from Deaths_dir oftype integer;
+        from Deaths_ind oftype integer;
+        to TotalCasualties oftype integer;
+
+        TotalCasualties: Injuries_dir + Injuries_ind + Deaths_dir + Deaths_ind;
+    }
+
+    block CasualtiesTransformer oftype TableTransformer {
+        inputColumns: [
+            "INJURIES_DIRECT",
+            "INJURIES_INDIRECT",
+            "DEATHS_DIRECT",
+            "DEATHS_INDIRECT"
+        ];
+        outputColumn: 'TOTAL_CASUALTIES';
+        uses: TotalCasualties;
+    }
+
+    block WeatherLoader oftype SQLiteLoader {
+        table: "weather_event_damages";
+        file: "../data/weather_event_damages.sqlite";
+    }
+}
+
+pipeline PoliticalOpinionPipeline {
+
+    PoliticalOpinionExtractor
+        -> PoliticalOpinionTableInterpreter
+        -> OpinionCombineTransformer
+        -> ToUpperCaseTransformer
+        -> PoliticalOpinionLoader;
+
+
+    /*
+    block PoliticalOpinionExtractor oftype HttpExtractor {
+        url: "https://raw.githubusercontent.com/yaleschooloftheenvironment/Yale-Climate-Change-Opinion-Maps/refs/heads/main/YCOM5.0_2020_webdata_2020-08-19.csv";
+        retries: 3;
+    }
+
+    block PoliticalOpinionTextFileInterpreter oftype TextFileInterpreter { }
+
+    block PoliticalOpinionCSVInterpreter oftype CSVInterpreter {
+        delimiter: ",";
+        enclosing: '"';
+    }
+
+    */
+
+    block PoliticalOpinionExtractor oftype CSVExtractor {
+        url: "https://raw.githubusercontent.com/yaleschooloftheenvironment/Yale-Climate-Change-Opinion-Maps/refs/heads/main/YCOM5.0_2020_webdata_2020-08-19.csv";
+        delimiter: ",";
+        enclosing: '"';
+    }
+
+    block PoliticalOpinionTableInterpreter oftype TableInterpreter {
+        header: true;
+        columns: [
+            "GeoType" oftype State,
+            "GeoName" oftype text,
+            "fundrenewables" oftype decimal,
+            "fundrenewablesOppose" oftype decimal,
+            "regulate" oftype decimal,
+            "regulateOppose" oftype decimal,
+            "CO2limits" oftype decimal,
+            "CO2limitsOppose" oftype decimal,
+            "reducetax" oftype decimal,
+            "reducetaxOppose" oftype decimal,
+            "supportRPS" oftype decimal,
+            "supportRPSOppose" oftype decimal,
+            "rebates" oftype decimal,
+            "rebatesOppose" oftype decimal,
+            "drillANWR" oftype decimal,
+            "drillANWROppose" oftype decimal,
+            "drilloffshore" oftype decimal,
+            "drilloffshoreOppose" oftype decimal,
+            "teachGW" oftype decimal,
+            "teachGWOppose" oftype decimal,
+            "corporations" oftype decimal,
+            "corporationsOppose" oftype decimal,
+            "president" oftype decimal,
+            "presidentOppose" oftype decimal,
+            "congress" oftype decimal,
+            "congressOppose" oftype decimal,
+            "governor" oftype decimal,
+            "governorOppose" oftype decimal,
+            "localofficials" oftype decimal,
+            "localofficialsOppose" oftype decimal,
+            "citizens" oftype decimal,
+            "citizensOppose" oftype decimal,
+            "gwvoteimp" oftype decimal,
+            "gwvoteimpOppose" oftype decimal,
+            "priority" oftype decimal,
+            "priorityOppose" oftype decimal,
+        ];
+    }
+    // out of around 36 items fitting to the question whether an individual supports clime change counter measures,
+    // 24 were picked which seems to be enough for a strong model and internal validity. Most of the "opposed"-items are reveresed and hence the percentage reversed (100% - value).
+    transform OpinionCombiner {
+        from fundrenewables oftype decimal;
+        from fundrenewablesOppose oftype decimal;
+        from regulate oftype decimal;
+        from regulateOppose oftype decimal;
+        from co2limits oftype decimal;
+        from co2limitsOppose oftype decimal;
+        from supportRPS oftype decimal;
+        from supportRPSOppose oftype decimal;
+        from rebates oftype decimal;
+        from rebatesOppose oftype decimal;
+        from corporations oftype decimal;
+        from corporationsOppose oftype decimal;
+        from president oftype decimal;
+        from presidentOppose oftype decimal;
+        from congress oftype decimal;
+        from congressOppose oftype decimal;
+        from governor oftype decimal;
+        from governorOppose oftype decimal;
+        from citizens oftype decimal;
+        from citizensOppose oftype decimal;
+        from gwvoteimp oftype decimal;
+        from gwvoteimpOppose oftype decimal;
+        from priority oftype decimal;
+        from priorityOppose oftype decimal;
+        to AverageOpinionTrend oftype decimal;
+
+        AverageOpinionTrend: (fundrenewables + (100 - fundrenewablesOppose) + regulate + (100 - regulateOppose) + co2limits + (100 - co2limitsOppose) + 
+        supportRPS + (100 - supportRPSOppose) + rebates + (100 - rebatesOppose) + corporations + (100 - corporationsOppose) + president + (100 - presidentOppose) + 
+        congress + (100 - congressOppose) + governor + (100 - governorOppose) + citizens + (100 - citizensOppose) + gwvoteimp + (100 - gwvoteimpOppose) + priority + 
+        (100 - priorityOppose)) / 24;
+    }
+
+    block OpinionCombineTransformer oftype TableTransformer {
+        inputColumns: [
+            "fundrenewables",
+            "fundrenewablesOppose",
+            "regulate",
+            "regulateOppose",
+            "CO2limits",
+            "CO2limitsOppose",
+            "supportRPS",
+            "supportRPSOppose",
+            "rebates",
+            "rebatesOppose",
+            "corporations",
+            "corporationsOppose",
+            "president",
+            "presidentOppose",
+            "congress",
+            "congressOppose",
+            "governor",
+            "governorOppose",
+            "citizens",
+            "citizensOppose",
+            "gwvoteimp",
+            "gwvoteimpOppose",
+            "priority",
+            "priorityOppose"
+        ];
+        outputColumn: 'AverageOpinionTrend';
+        uses: OpinionCombiner;
+    }
+
+    transform ToUpperCase {
+        from geoName oftype text;
+        to geoNameNew oftype text;
+
+        geoNameNew: uppercase geoName;
+    }
+
+    block ToUpperCaseTransformer oftype TableTransformer {
+        inputColumns: [
+            "GeoName",
+        ];
+        outputColumn: 'GeoName';
+        uses: ToUpperCase;
+    }
+
+    block PoliticalOpinionLoader oftype SQLiteLoader {
+        table: "political_opinion";
+        file: "../data/political_opinion.sqlite";
+    }
+}
+
+valuetype State oftype text {
+    constraints: [
+        StateFilter,
+    ];
+}
+
+constraint StateFilter oftype AllowlistConstraint {
+    allowlist: [
+        "State",
+    ];
+}
