@@ -1,0 +1,1 @@
+This package is a reproduction package that can be used to hands-on explore the example project that was presented in the open data [blogpost series](https://jvalue.com/2025/09/09/working-with-open-data-a-practical-guide-for-curious-minds/) of the jvalue project.
